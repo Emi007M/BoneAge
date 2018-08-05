@@ -17,7 +17,8 @@ from multiprocessing import Process
 import queue
 import threading
 import urllib.request as urllib2
-
+import winsound
+import time
 
 TRAINING_DATASET = 'training_dataset'
 TRAINING_IMAGES = TRAINING_DATASET + '/images'
@@ -45,6 +46,7 @@ def getBoneAgeById(filename):
         if row['id'] == filename:
             return row['boneage']
     return -1
+
 
 def getGenderById(filename):
     for row in trainingLabels:
@@ -75,11 +77,9 @@ def preprocessSingleImage(filename, preprocess=0):
 
 
 class TrainingData:
-
     def __init__(self):
         self.image = ImageData(1377)
         print(self.image.gender)
-
 
     def copyTrainingImages(self, gender=1, minAge=60, maxAge=180):
 
@@ -90,7 +90,7 @@ class TrainingData:
         for row in trainingLabels:
             if row['male'] == str(gender) and minAge <= int(row['boneage']) <= maxAge:
                 print('found', row['id'], row['male'], row['boneage'])
-                copyfile(FROM+'/'+ row['id']+IMG_EXT, TO+'/'+ row['id']+IMG_EXT)
+                copyfile(FROM + '/' + row['id'] + IMG_EXT, TO + '/' + row['id'] + IMG_EXT)
 
     def putToLabelFolders(self):
 
@@ -134,70 +134,176 @@ class TrainingData:
             else:
                 shutil.copy2(s, d)
 
-
     def removeSmallLabels(self, dir='training_dataset/m_augmented/'):
         dirs_to_remove = []
         for root, dirs, files in os.walk(dir):
 
             # print(root)
             # print(dirs)
-            #print("in "+dirs+' are '+ str(len(files)) + ' files')
+            # print("in "+dirs+' are '+ str(len(files)) + ' files')
             for d in dirs:
-                for r, f, fi in os.walk(root+d):
+                for r, f, fi in os.walk(root + d):
                     # print("x", r, f, len(fi), root, d)
                     if len(fi) < 35:
                         dirs_to_remove.append(d)
                         if not os.path.exists('training_dataset/copied_small/' + d):
                             os.makedirs('training_dataset/copied_small/' + d)
                         # shutil.copy(root+d, 'training_dataset/copied_small/' + d)
-                        self.copytree(root+d, 'training_dataset/copied_small/' + d)
-
+                        self.copytree(root + d, 'training_dataset/copied_small/' + d)
 
         print("dirs to remove")
         # print(dirs_to_remove)
         for d in dirs_to_remove:
-        #     print("del", d, dir)
-        #     if not os.path.exists('training_dataset/copied_small/'+d):
-        #         os.makedirs('training_dataset/copied_small/'+d)
+            #     print("del", d, dir)
+            #     if not os.path.exists('training_dataset/copied_small/'+d):
+            #         os.makedirs('training_dataset/copied_small/'+d)
 
             # for root, dirs, f in os.walk(dir):
             # for files in dir+d:
             #     shutil.copyfile(dir+d+'/'+f, 'training_dataset/copied_small/'+d+'/'+f)
 
-            #shutil.copy(dir+d, 'training_dataset/copied_small')
+            # shutil.copy(dir+d, 'training_dataset/copied_small')
             shutil.rmtree(dir + '/' + d)
-            #print('dir '+ d + ' removed')
+            # print('dir '+ d + ' removed')
 
-    def trainsetAugmentation(self, dirFrom, dirTo):
-        train_datagen = keras.preprocessing.image.ImageDataGenerator(
-            width_shift_range=0.2,
-            height_shift_range=0.2,
-            rotation_range=20,
-            zoom_range=0.2,
-            horizontal_flip=True)
+    def trainsetAugmentation(self, dirFrom, dirTo, preprocessing=1, prefix=""):
+
+        if preprocessing is 1:
+            train_datagen = keras.preprocessing.image.ImageDataGenerator(
+                width_shift_range=0.2,
+                height_shift_range=0.2,
+                rotation_range=20,
+                zoom_range=0.2,
+                horizontal_flip=True,
+                fill_mode='constant'
+            )
+            generator = train_datagen.flow_from_directory(
+                dirFrom,
+                target_size=(500, 500),
+                color_mode='grayscale',
+                batch_size=32,
+                class_mode='categorical',
+                save_to_dir=dirTo,
+                save_format='jpeg',
+                save_prefix=prefix)
+        else:
+            train_datagen = keras.preprocessing.image.ImageDataGenerator()
+            generator = train_datagen.flow_from_directory(
+                dirFrom,
+                target_size=(500, 500),
+                color_mode='grayscale',
+                batch_size=1,
+                class_mode=None,
+                save_to_dir=dirTo,
+                save_format='jpeg',
+                save_prefix=prefix)
 
         # for root, dirs, files in os.walk(dir):
         #     for d in dirs:
 
-        train_generator = train_datagen.flow_from_directory(
-           dirFrom,
-            target_size=(500, 500),
-            color_mode='grayscale',
-            batch_size=32,
-            class_mode='binary',
-            save_to_dir=dirTo,
-            save_format='jpeg')
+        # train_generator = train_datagen.flow_from_directory(
+        #    dirFrom,
+        #     target_size=(500, 500),
+        #     color_mode='grayscale',
+        #     batch_size=32,
+        #     class_mode='categorical',
+        #     save_to_dir=dirTo,
+        #     save_format='jpeg',
+        #     save_prefix=prefix)
 
         i = 0
-        for batch in train_generator:
+        for batch in generator:
 
-            i+=1
-            if i > len(train_generator.filenames):
+            # print(batch)
+
+            i += 1
+            if i > len(generator.filenames):
                 break
+
+    def divideTrainingImagesToTrainAndValidate(self, gender=1, both_genders=0, dir_from=FROM, dir_to=TO,
+                                               train_percent=85, max_images=0):
+        TO = dir_to
+        FROM = dir_from
+        if not os.path.exists(TO):
+            os.makedirs(TO)
+
+        gender_sign = 'M' if gender == 1 else 'F'
+        gender = True if gender == 1 else False
+        labels = [x for x in trainingLabels if x['male'] == str(gender)]
+
+        np.random.shuffle(labels)
+
+        if max_images > 0:
+            labels = labels[0:max_images]
+
+        print("first 5 images from set:")
+        for i in range(5):
+            print(labels[i])
+
+        labels_amount = len(labels)
+        train_labels_amount = int(labels_amount * train_percent / 100)
+        print()
+        print("There are " + str(labels_amount) + " images to be divided into train and validation (" + str(
+            train_percent) + "% = " + str(train_labels_amount) + ").")
+
+        print("Images division started.")
+        print(time.time())
+        # copy train images
+        self.copyImagesToSpecifiedSet(FROM, TO, gender_sign, labels,
+                                      set_name='train', range_from=0, range_to=train_labels_amount)
+        # copy as validate images
+        self.copyImagesToSpecifiedSet(FROM, TO, gender_sign, labels,
+                                      set_name='validate', range_from=train_labels_amount, range_to=labels_amount)
+
+        winsound.Beep(540, 100)
+        winsound.Beep(440, 100)
+        winsound.Beep(540, 100)
+
+        print("Images augmentation started.")
+        # augment and resize train images
+        self.trainsetAugmentation(TO + '/train' + gender_sign + '/', TO + '/train_augmented/', preprocessing=1,
+                                  prefix=gender_sign)
+        print("train images augmented.")
+
+        winsound.Beep(540, 100)
+        winsound.Beep(440, 100)
+        winsound.Beep(540, 100)
+
+        # only resize validate images
+        self.trainsetAugmentation(TO + '/validate' + gender_sign + '/', TO + '/validate_augmented/', preprocessing=0,
+                                  prefix=gender_sign)
+        print("validate images augmented.")
+        print(time.time())
+
+        winsound.Beep(540, 100)
+        winsound.Beep(440, 500)
+        winsound.Beep(340, 1000)
+
+    def copyImagesToSpecifiedSet(self, FROM, TO, gender_sign, labels, set_name, range_from, range_to):
+        path = TO + '/' + set_name + gender_sign + '/'
+
+        for i in range(range_from, range_to):
+            row = labels[i]
+            dest_path = path + str(row['boneage']) + '/'
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            copyfile(FROM + '/' + row['id'] + IMG_EXT, dest_path + gender_sign + row['id'] + IMG_EXT)
+
+        print(set_name+" images copied.")
 
 
 td = TrainingData()
 # td.copyTrainingImages()
-#td.putToLabelFolders()
-#td.removeSmallLabels()
-td.trainsetAugmentation('training_dataset/M_labeled0/', 'training_dataset/M_labeled_augmented/')
+# td.putToLabelFolders()
+# td.removeSmallLabels()
+# td.trainsetAugmentation('training_dataset/M_labeled0/', 'training_dataset/M_labeled_augmented/')
+
+MALE = 1
+FEMALE = 0
+
+td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/M_labeled_train_validate',
+                                          gender=MALE,
+                                          max_images=0)
+
+# td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/M_labeled_train_validate',
+#                                           gender=FEMALE,
+#                                           max_images=20)

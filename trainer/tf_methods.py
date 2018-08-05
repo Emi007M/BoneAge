@@ -18,6 +18,7 @@ from tensorflow.python.util import compat
 from shutil import copyfile
 import pickle
 
+
 from trainer.bottlenecks_randomizer import BottlenecksRandomizer
 
 FLAGS = None
@@ -115,7 +116,98 @@ def create_image_lists(image_dir, testing_percentage, validation_percentage):
     return result
 
 
-def get_image_path(image_lists, label_name, index, image_dir, category):
+def create_image_lists_from_prepared_dir(image_dir):
+    """Builds a list of training images from the file system.
+    and returns a data structure
+  describing the lists of images for each label and their paths.
+
+  Args:
+    image_dir: String path to a folder containing subfolders of images.
+
+  Returns:
+    A dictionary containing an entry for each label subfolder, with images split
+    into training, testing, and validation sets within each label.
+  """
+    if not gfile.Exists(image_dir):
+        tf.logging.error("Image directory '" + image_dir + "' not found.")
+        return None
+    result = {}
+
+    image_dir_train = image_dir + '/train_augmented/'
+    image_dir_validate = image_dir + '/validate_augmented/'
+
+    print(image_dir_train)
+
+    # initialize all labels sets
+    print("initializing label sets")
+    sub_dirs1 = [x[0] for x in gfile.Walk(image_dir_train)]
+    sub_dirs1 = sub_dirs1[1:]
+    sub_dirs2 = [x[0] for x in gfile.Walk(image_dir_validate)]
+    sub_dirs2 = sub_dirs2[1:]
+
+    sub_dirs = sub_dirs1 + sub_dirs2
+    print("start")
+    for sub_dir in sub_dirs:
+        dir_name = os.path.basename(sub_dir)
+        label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+
+        result[label_name] = {
+            'dir': dir_name,
+            'training': [],
+            'testing': [],
+            'validation': [],
+        }
+
+
+    print("subdirs1:")
+    print(sub_dirs1)
+
+    # fill in image_lists with training images
+    result = fill_in_specified_set_with_labels(image_dir_train, result, sub_dirs1, 'training')
+    # fill in image_lists with validation images
+    result = fill_in_specified_set_with_labels(image_dir_validate, result, sub_dirs2, 'validation')
+
+    return result
+
+
+def fill_in_specified_set_with_labels(image_dir, result, sub_dirs, specified_set):
+    for sub_dir in sub_dirs:
+        extensions = ['jpg', 'jpeg', 'JPG', 'JPEG']
+        file_list = []
+        dir_name = os.path.basename(sub_dir)
+        print("ee")
+        print(dir_name)
+        print(image_dir)
+        if dir_name == image_dir:
+            continue
+        tf.logging.info("Looking for images in '" + dir_name + "'")
+        for extension in extensions:
+            file_glob = os.path.join(image_dir, dir_name, '*.' + extension)
+            file_list.extend(gfile.Glob(file_glob))
+        if not file_list:
+            tf.logging.warning('No files found')
+            continue
+        if len(file_list) < 20:
+            tf.logging.warning(
+                'WARNING: Folder has less than 20 images, which may cause issues.')
+        elif len(file_list) > MAX_NUM_IMAGES_PER_CLASS:
+            tf.logging.warning(
+                'WARNING: Folder {} has more than {} images. Some images will '
+                'never be selected.'.format(dir_name, MAX_NUM_IMAGES_PER_CLASS))
+        label_name = re.sub(r'[^a-z0-9]+', ' ', dir_name.lower())
+
+        images = []
+        for file_name in file_list:
+            base_name = os.path.basename(file_name)
+            images.append(base_name)
+
+        # result[label_name][specified_set] = images
+        result[label_name].update({specified_set: images})
+
+    return result
+
+
+def get_image_path(image_lists, label_name, index, image_dir, category, is_for_bottleneck_path = 0):
     """"Returns a path to an image for a label at the given index.
 
   Args:
@@ -132,6 +224,7 @@ def get_image_path(image_lists, label_name, index, image_dir, category):
     File system path string to an image that meets the requested parameters.
 
   """
+
     if label_name not in image_lists:
         tf.logging.fatal('Label does not exist %s.', label_name)
     label_lists = image_lists[label_name]
@@ -143,8 +236,29 @@ def get_image_path(image_lists, label_name, index, image_dir, category):
                          label_name, category)
     mod_index = index % len(category_list)
     base_name = category_list[mod_index]
-    sub_dir = label_lists['dir']
+
+    # added for pre-divided dataset into training and validation sets
+
+
+    if is_for_bottleneck_path:
+        sub_dir = label_lists['dir']
+    else:
+        if category is 'training':
+            category_folder = 'train_augmented/'
+        else:  # 'validation', could be also 'testing'
+            category_folder = 'validate_augmented/'
+        sub_dir = category_folder + label_lists['dir']
+
+    image_dir += '/'
+    sub_dir += '/'
     full_path = os.path.join(image_dir, sub_dir, base_name)
+    # print("cc")
+    # print(image_dir)
+    # # print(category_folder)
+    # print(sub_dir)
+    # print(base_name)
+    # print(full_path)
+    # print("cx")
     return full_path
 
 
@@ -166,7 +280,7 @@ def get_bottleneck_path(image_lists, label_name, index, bottleneck_dir,
     File system path string to an image that meets the requested parameters.
   """
     return get_image_path(image_lists, label_name, index, bottleneck_dir,
-                          category) + '_' + architecture + '.txt'
+                          category, is_for_bottleneck_path=1) + '_' + architecture + '.txt'
 
 
 def create_model_graph(model_info):
@@ -307,6 +421,13 @@ def create_bottleneck_file(bottleneck_path, image_lists, label_name, index,
     tf.logging.info('Creating bottleneck at ' + bottleneck_path)
     image_path = get_image_path(image_lists, label_name, index,
                                 image_dir, category)
+
+    # # added for pre-divided dataset into training and validation sets
+    # if category is 'training':
+    #     image_path = 'train_augmented/' + image_path
+    # else: #'validation', could be also 'testing'
+    #     image_path = 'validate_augmented/' + image_path
+
     if not gfile.Exists(image_path):
         tf.logging.fatal('File does not exist %s', image_path)
     image_data = gfile.FastGFile(image_path, 'rb').read()
@@ -412,6 +533,8 @@ def cache_bottlenecks(sess, image_lists, image_dir, bottleneck_dir,
   """
     how_many_bottlenecks = 0
     ensure_dir_exists(bottleneck_dir)
+    print("xxx")
+    print(image_lists)
     for label_name, label_lists in image_lists.items():
         for category in ['training', 'testing', 'validation']:
             if len(label_lists[category]) == 0:
@@ -509,6 +632,11 @@ def get_random_cached_bottlenecks(sess, bottleneck_rnd: BottlenecksRandomizer, h
                 bottlenecks.append(bottleneck)
                 ground_truths.append(label_name) # was label_index
                 filenames.append(image_name)
+    # print("elo")
+    # print(class_count)
+    # print(bottleneck_rnd.image_lists.keys())
+    # print(bottleneck_rnd.image_lists)
+    # print(ground_truths)
     return bottlenecks, ground_truths, filenames, bottleneck_rnd.image_lists
 
 
@@ -719,8 +847,10 @@ def add_jpeg_decoding(input_width, input_height, input_depth, input_mean,
 def get_or_create_image_lists():
 
     if FLAGS.create_bottlenecks:
-        image_lists = create_image_lists(FLAGS.image_dir, FLAGS.testing_percentage,
-                                         FLAGS.validation_percentage)
+        # image_lists = create_image_lists(FLAGS.image_dir, FLAGS.testing_percentage,
+        #                                  FLAGS.validation_percentage)
+        image_lists = create_image_lists_from_prepared_dir(FLAGS.image_dir)
+
         if not os.path.exists(FLAGS.bottleneck_dir):
             os.makedirs(FLAGS.bottleneck_dir)
         with open(FLAGS.bottleneck_dir + '/image_list_division.pkl', 'wb') as output:

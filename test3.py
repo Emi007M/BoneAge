@@ -1,8 +1,3 @@
-'''
-A linear regression learning algorithm example using TensorFlow library.
-Author: Aymeric Damien
-Project: https://github.com/aymericdamien/TensorFlow-Examples/
-'''
 
 from __future__ import print_function
 
@@ -16,6 +11,9 @@ from trainer.params_extractor import extract_parameters
 from trainer.tf_methods import *
 from trainer.graph_final_layer import append_final_layer_to_graph
 import pickle
+import winsound
+import datetime
+
 rng = np.random
 
 # CHECKPOINT_NAME = '/tmp/_retrain_checkpoint'
@@ -40,10 +38,12 @@ def init_data():
     data_Y = data_X + 20 * np.sin(data_X / 10)
     return shuffle_data(data_X, data_Y)
 
+
 def shuffle_data(X, Y):
     data_X_Y = list(zip(X, Y))
     rng.shuffle(data_X_Y)
     return zip(*data_X_Y)
+
 
 def split_data_to_train_and_test():
     global train_X, train_Y, test_X, test_Y
@@ -55,15 +55,14 @@ def split_data_to_train_and_test():
     return (train_X, train_Y, test_X, test_Y)
 
 
-
-
 if __name__ == '__main__':
     name = '12'
     # image_dir_folder = 'three_classes'
-    image_dir_folder = 'M_labeled_augmented'
+    image_dir_folder = 'M_labeled_train_validate'
+    #image_dir_folder = 'X'
 
     epochs = 2
-    create_bottlenecks = 0
+    create_bottlenecks = 1
 
     params = (name, image_dir_folder, epochs, create_bottlenecks)
     FLAGS, unparsed = extract_parameters(argparse.ArgumentParser(), params)
@@ -73,6 +72,11 @@ if __name__ == '__main__':
     tf.logging.set_verbosity(tf.logging.INFO)
     prepare_file_system()
 
+    winsound.Beep(440, 500)
+    winsound.Beep(540, 100)
+    winsound.Beep(440, 100)
+    winsound.Beep(340, 1000)
+
     # Gather information about the model architecture we'll be using.
     model_info = create_model_info(FLAGS.architecture)
     if not model_info:
@@ -80,12 +84,18 @@ if __name__ == '__main__':
         sys.exit("finishing.")
 
     tf.logging.info("elo")
+    winsound.Beep(440, 100)
+    winsound.Beep(540, 100)
+    winsound.Beep(640, 200)
 
     # Look at the folder structure, and create lists of all the images.
     image_lists = get_or_create_image_lists()
 
-    tf.logging.info("elo. image lists created.")
+    winsound.Beep(640, 100)
+    winsound.Beep(540, 100)
+    winsound.Beep(440, 200)
 
+    tf.logging.info("elo. image lists created.")
 
 # Set up the pre-trained graph.
 maybe_download_and_extract(model_info['data_url'])
@@ -98,19 +108,17 @@ graph, bottleneck_tensor, resized_image_tensor = (
                                                               learning_rate)
 tf.logging.info("Added final layer.")
 
-
-
 ##########################
 
-img_dir = "imgs/3121.jpg" # age 125 zwraca  2.33032274  61.44803619
+img_dir = "imgs/3121.jpg"  # age 125 zwraca  2.33032274  61.44803619
 # img_dir = "imgs/10434.jpg" # age 126 zwraca  2.33032894 61.44826126
-#img_dir = "imgs/2024.jpg" # age 126 zwraca              61.44814682
+# img_dir = "imgs/2024.jpg" # age 126 zwraca              61.44814682
 # img_dir = "imgs/_801_4808766.jpeg" # age 126 zwraca     61.44825745
-img_dir = "imgs/_5186_8315726.jpeg" # age 204 zwraca    61.44829178
-img_dir = "imgs/_5185_9483.jpeg" # age 204 zwraca
+img_dir = "imgs/_5186_8315726.jpeg"  # age 204 zwraca    61.44829178
+img_dir = "imgs/_5185_9483.jpeg"  # age 204 zwraca
 
-img_dir = 'trainer/tester/'+img_dir
-gt = np.array(0.0).reshape(1,)
+img_dir = 'trainer/tester/' + img_dir
+gt = np.array(0.0).reshape(1, )
 
 image_data = gfile.FastGFile(img_dir, 'rb').read()
 
@@ -150,7 +158,7 @@ with tf.Session(graph=graph) as sess:
 
     # Create a train saver that is used to restore values into an eval graph
     # when exporting models.
-    #train_saver = tf.train.Saver()
+    # train_saver = tf.train.Saver()
     saver = tf.train.Saver()
 
     # Set up all our weights to their initial default values.
@@ -158,7 +166,6 @@ with tf.Session(graph=graph) as sess:
     sess.run(init)
 
     tf.logging.info("elo. session prepared")
-
 
     ################################
 
@@ -174,6 +181,14 @@ with tf.Session(graph=graph) as sess:
 
     i = 0
     for j in range(FLAGS.how_many_epochs):
+
+        winsound.Beep(440, 100)
+        winsound.Beep(540, 200)
+        winsound.Beep(640, 300)
+        print("Start of epoch " + str(j + 1))
+        print(time.time())
+        print(datetime.datetime.now())
+
         epoch_image_lists = []
         whole_image_lists = []
         # epoch_image_lists = create_image_lists(FLAGS.image_dir, FLAGS.testing_percentage,
@@ -184,7 +199,6 @@ with tf.Session(graph=graph) as sess:
         with open(FLAGS.bottleneck_dir + '/image_list_division.pkl', 'rb') as input:
             whole_image_lists = pickle.load(input)
             tf.logging.info("loaded")
-
 
         bottleneck_rnd_test = BottlenecksRandomizer('validation', whole_image_lists)
         (all_test_bottlenecks,
@@ -213,7 +227,6 @@ with tf.Session(graph=graph) as sess:
             #                   j * FLAGS.train_batch_size: j * FLAGS.train_batch_size + FLAGS.train_batch_size]
             merged = tf.summary.merge_all()
 
-
             (train_bottlenecks,
              train_ground_truth, _, epoch_image_lists) = get_random_cached_bottlenecks(
                 sess, bottleneck_rnd_train, FLAGS.train_batch_size,
@@ -222,8 +235,6 @@ with tf.Session(graph=graph) as sess:
                 FLAGS.architecture)
             if epoch_image_lists is -1:
                 break
-
-
 
             # Feed the bottlenecks and ground truth into the graph, and run a training
             # step. Capture training summaries for TensorBoard with the `merged` op.
@@ -237,17 +248,20 @@ with tf.Session(graph=graph) as sess:
             y = train_ground_truth
 
             extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-            results, _, _ = sess.run([final_tensor, train_step, extra_update_ops], feed_dict={bottleneck_input: x, ground_truth_input: y, 'dense_1/InTrainingMode:0': True})
-            #train_writer.add_summary(summary, i)
+            results, _, _ = sess.run([final_tensor, train_step, extra_update_ops],
+                                     feed_dict={bottleneck_input: x, ground_truth_input: y,
+                                                'dense_1/InTrainingMode:0': True})
+            # train_writer.add_summary(summary, i)
             # sess.run(train_step, feed_dict={bottleneck_input: np.array(x).reshape(batch_size, bottleneck_tensor_size), ground_truth_input: np.array(y).reshape(batch_size)})
 
 
 
             if (i) % display_step == 0:
-
-                print("results", str(results))
-                print("for:", str(y))
-                print("():", str(x[0]))
+                print("results for labels from training set:")
+                print(zip(y, results))
+                # print("results", str(results))
+                # print("for:", str(y))
+                # print("():", str(x[0]))
 
                 # results = sess.run([final_tensor],
                 #                    feed_dict={bottleneck_input: x, ground_truth_input: y})
@@ -306,14 +320,12 @@ with tf.Session(graph=graph) as sess:
 
 
 
-                c = sess.run(MAE, feed_dict={bottleneck_input: all_test_bottlenecks, ground_truth_input: all_test_ground_truth})
+                c = sess.run(MAE, feed_dict={bottleneck_input: all_test_bottlenecks,
+                                             ground_truth_input: all_test_ground_truth})
                 # validation_writer.add_summary(summary, i)
                 # c = sess.run(MAE, feed_dict={bottleneck_input: train_X, ground_truth_input: train_Y})
                 cost_y.append(c)
-                tf.logging.info("MAE: " + '%.5f' % c)
-
-
-
+                tf.logging.info("validation MAE: " + '%.5f' % c)
 
                 bottleneck_values = run_bottleneck_on_image(
                     sess, image_data, jpeg_data_tensor, decoded_image_tensor,
@@ -323,7 +335,7 @@ with tf.Session(graph=graph) as sess:
                 #     'DecodeJPGInput:0': image_data
                 # })
                 # img_result = np.reshape(img_result, (299, 299, 3))
-                #print("decoded img bytes: " + str(img_result))
+                # print("decoded img bytes: " + str(img_result))
 
                 # print("bottlen img bytes: " + str(bottleneck_values))
                 # print(img_result.size)
@@ -371,7 +383,7 @@ with tf.Session(graph=graph) as sess:
                 # print("bott_in img bytes: " + str(btln))
                 # img_name = os.path.basename(img_dir)
                 print("XImage: " + img_name + " age: " + str(result))
-                #print("dense 2 bias:" + str(bias[0:5]))
+                # print("dense 2 bias:" + str(bias[0:5]))
 
                 # resultsx = sess.run([final_tensor],
                 #                     feed_dict={bottleneck_input: btln_list, ground_truth_input: [204]})
@@ -402,7 +414,7 @@ with tf.Session(graph=graph) as sess:
                 # print("():", str(btln_list2[0]))
 
             # Display logs per epoch step
-            #tf.logging.log_every_n(tf.logging.INFO, ("MAE:", c), 20)
+            # tf.logging.log_every_n(tf.logging.INFO, ("MAE:", c), 20)
             # if (i) % display_step == 0:
             #     print("Epoch:", '%04d' % (epoch + 1), "cost=", "{:.9f}".format(c))  # ,# \
             #
@@ -426,24 +438,29 @@ with tf.Session(graph=graph) as sess:
             #                      class_count)
 
         # train_saver.save(sess, CHECKPOINT_NAME)
-        #save every epoch
-        saver.save(sess, CHECKPOINT_NAME+'model_iter', global_step=j)
+        # save every epoch
+        saver.save(sess, CHECKPOINT_NAME + 'model_iter', global_step=j)
 
+    # after all the epochs save final model for the last time
 
-    saver.save(sess, CHECKPOINT_NAME+'model_final')
-    tf.logging.info("training completed. model saved in "+CHECKPOINT_NAME)
+    winsound.Beep(640, 100)
+    winsound.Beep(540, 500)
+    winsound.Beep(440, 1000)
 
-
+    saver.save(sess, CHECKPOINT_NAME + 'model_final')
+    tf.logging.info("training completed. model saved in " + CHECKPOINT_NAME)
+    print(time.time())
+    print(datetime.datetime.now())
 
     ####################################
 
 
     start_time = time.time()
-    i=0
+    i = 0
     # for (x, y) in zip(train_X, train_Y):
     #     print("elo:", x, y)
     # Run the initializer
-    #sess.run(init)
+    # sess.run(init)
 
     # # Fit all training data
     # for epoch in range(training_epochs):
@@ -484,8 +501,8 @@ with tf.Session(graph=graph) as sess:
     # cost function
     cost_x = np.arange(len(cost_y))
 
-    cost_epochs_x = np.arange(0,len(cost_y), int(len(cost_y)/epochs))
-    cost_epochs_y =[]
+    cost_epochs_x = np.arange(0, len(cost_y), int(len(cost_y) / epochs))
+    cost_epochs_y = []
     for x in cost_epochs_x:
         cost_epochs_y.append(cost_y[x])
     plt.plot(cost_x, cost_y, 'b-', label='MAE')
@@ -516,5 +533,3 @@ with tf.Session(graph=graph) as sess:
     # plt.plot(test_X[:, 0], sess.run(final_tensor, feed_dict={bottleneck_input: test_X}), 'bx', label='Fitted line')
     # plt.legend()
     # plt.show()
-
-
