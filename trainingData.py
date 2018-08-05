@@ -19,6 +19,8 @@ import threading
 import urllib.request as urllib2
 import winsound
 import time
+import traceback
+import logging
 
 TRAINING_DATASET = 'training_dataset'
 TRAINING_IMAGES = TRAINING_DATASET + '/images'
@@ -221,7 +223,7 @@ class TrainingData:
                 break
 
     def divideTrainingImagesToTrainAndValidate(self, gender=1, both_genders=0, dir_from=FROM, dir_to=TO,
-                                               train_percent=85, max_images=0):
+                                               train_percent=85, max_images=None, min_boneage=None, max_boneage=None):
         TO = dir_to
         FROM = dir_from
         if not os.path.exists(TO):
@@ -231,9 +233,14 @@ class TrainingData:
         gender = True if gender == 1 else False
         labels = [x for x in trainingLabels if x['male'] == str(gender)]
 
+        if min_boneage:
+            labels = [x for x in labels if int(x['boneage']) >= min_boneage]
+        if max_boneage:
+            labels = [x for x in labels if int(x['boneage']) <= max_boneage]
+
         np.random.shuffle(labels)
 
-        if max_images > 0:
+        if max_images:
             labels = labels[0:max_images]
 
         print("first 5 images from set:")
@@ -246,7 +253,7 @@ class TrainingData:
         print("There are " + str(labels_amount) + " images to be divided into train and validation (" + str(
             train_percent) + "% = " + str(train_labels_amount) + ").")
 
-        print("Images division started.")
+        print("Images division started...")
         print(time.time())
         # copy train images
         self.copyImagesToSpecifiedSet(FROM, TO, gender_sign, labels,
@@ -259,7 +266,7 @@ class TrainingData:
         winsound.Beep(440, 100)
         winsound.Beep(540, 100)
 
-        print("Images augmentation started.")
+        print("Images augmentation started...")
         # augment and resize train images
         self.trainsetAugmentation(TO + '/train' + gender_sign + '/', TO + '/train_augmented/', preprocessing=1,
                                   prefix=gender_sign)
@@ -300,10 +307,25 @@ td = TrainingData()
 MALE = 1
 FEMALE = 0
 
-td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/M_labeled_train_validate',
-                                          gender=MALE,
-                                          max_images=0)
+try:
 
-# td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/M_labeled_train_validate',
-#                                           gender=FEMALE,
-#                                           max_images=20)
+    td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/14-15_labeled_train_validate',
+                                              gender=MALE,
+                                              max_images=None, min_boneage=168, max_boneage=180)
+    td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/14-15_labeled_train_validate',
+                                              gender=FEMALE,
+                                              max_images=None, min_boneage=168, max_boneage=180)
+
+    # td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/M_labeled_train_validate',
+    #                                           gender=FEMALE,
+    #                                           max_images=20)
+
+except Exception as e:
+    logging.error(traceback.format_exc())
+    winsound.Beep(600, 200)
+    winsound.Beep(600, 200)
+    winsound.Beep(600, 200)
+finally:
+    winsound.Beep(600, 100)
+    winsound.Beep(400, 300)
+    winsound.Beep(300, 500)

@@ -10,7 +10,7 @@ img_dir = "imgs/3121.jpg" # age 125 zwraca  2.33032274  61.44803619
 #img_dir = "imgs/2024.jpg" # age 126 zwraca              61.44814682
 #img_dir = "imgs/_801_4808766.jpeg" # age 126 zwraca     61.44825745
 #img_dir = "imgs/_5186_8315726.jpeg" # age 204 zwraca    61.44829178
-img_dir = "imgs/M_803_3067288.jpeg" # age 21
+#img_dir = "imgs/M_803_3067288.jpeg" # age 21
 
 
 
@@ -19,7 +19,8 @@ bottleneck = None
 gender = 1  # 0 or 1
 
 
-model_dir = "../trained_model3/"
+# model_dir = "../trained_model3/"
+model_dir = "../trained_modelM1epoch/"
 
 
 
@@ -151,6 +152,8 @@ image_data = gfile.FastGFile(img_dir, 'rb').read()
 
 
 tf.reset_default_graph()
+
+#imported_meta = tf.train.import_meta_graph(model_dir+"model_iter-0.meta")
 imported_meta = tf.train.import_meta_graph(model_dir+"model_final.meta")
 graph = tf.get_default_graph()
 
