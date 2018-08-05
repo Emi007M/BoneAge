@@ -68,10 +68,19 @@ def append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size
 
     with graph.as_default():
 
-        # todo
-        # gender_input = tf.placeholder(tf.float32, [None], 'GenderInput')
-        # dense_gender = tf.layers.dense(inputs=gender_input, units=32, activation=tf.nn.relu, name="dense_gender",
-        #                         bias_initializer=tf.constant_initializer(np.ones((1, 1000))))
+        gender_input = tf.placeholder(tf.float32, [None, 32], 'GenderInput')
+        # g = tf.transpose(gender_input)
+        # print(tf.shape(g)[0:1])
+        # #gender_i = tf.tile(g, [32, 1])
+
+        #gender_i = tf.tile(g, tf.reshape(32, [1]))
+        # gender_i = tf.tile(g, tf.shape(g)[0:1])
+        # print(tf.shape(gender_i))
+        # g = tf.transpose(gender_i)
+        print(tf.shape(gender_input))
+
+        dense_gender = tf.layers.dense(inputs=gender_input, units=32, activation=tf.nn.relu, name="dense_gender",
+                                bias_initializer=tf.constant_initializer(np.ones((1, 32))))
 
         bottleneck_input = tf.placeholder(tf.float32, [None, bottleneck_tensor_size], 'BottleneckInput')
         #bottleneck_input = tf.placeholder_with_default(bottleneck_tensor, [None, bottleneck_tensor_size],
@@ -98,8 +107,10 @@ def append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size
         with tf.name_scope('dense_1'):
             in_training_mode = tf.placeholder_with_default(False, shape=None, name='InTrainingMode')
 
+            # byl input > bottleneck_input <, zmienione na concat
+            merged_input = tf.concat([dense_gender, bottleneck_input], 1)
             batch_normed = tf.layers.batch_normalization(
-                inputs=bottleneck_input,
+                inputs= merged_input,
                 axis=-1,
                 momentum=0.999,
                 epsilon=1e-3,
@@ -140,4 +151,4 @@ def append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size
             optimizer = tf.train.AdamOptimizer(learning_rate, name="ADAM_optimizer")
             train_step = optimizer.minimize(MAE, name="train_step")
 
-        return bottleneck_input, ground_truth_input, final_tensor, MAE, train_step
+        return bottleneck_input, ground_truth_input, final_tensor, MAE, train_step, gender_input

@@ -17,6 +17,7 @@ from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 from shutil import copyfile
 import pickle
+import array
 
 
 from trainer.bottlenecks_randomizer import BottlenecksRandomizer
@@ -585,12 +586,13 @@ def get_random_cached_bottlenecks(sess, bottleneck_rnd: BottlenecksRandomizer, h
 
   Returns:
     List of bottleneck arrays, their corresponding ground truths, and the
-    relevant filenames.
+    relevant filenames. optionally gender list
   """
     class_count = len(bottleneck_rnd.image_lists.keys())
     bottlenecks = []
     ground_truths = []
     filenames = []
+    genders = []
 
 
     if how_many >= 0:
@@ -613,6 +615,7 @@ def get_random_cached_bottlenecks(sess, bottleneck_rnd: BottlenecksRandomizer, h
             bottlenecks.append(bottleneck)
             ground_truths.append(label_name) # was label_index
             filenames.append(image_name)
+            genders.append(1 if os.path.basename(image_name)[0] is 'M' else 0)
             unused_i += 1
 
             # pop from list
@@ -632,12 +635,14 @@ def get_random_cached_bottlenecks(sess, bottleneck_rnd: BottlenecksRandomizer, h
                 bottlenecks.append(bottleneck)
                 ground_truths.append(label_name) # was label_index
                 filenames.append(image_name)
-    # print("elo")
-    # print(class_count)
-    # print(bottleneck_rnd.image_lists.keys())
-    # print(bottleneck_rnd.image_lists)
-    # print(ground_truths)
-    return bottlenecks, ground_truths, filenames, bottleneck_rnd.image_lists
+
+                genders.append(1 if os.path.basename(image_name)[0] is 'M' else 0)
+    # print("genders")
+    # print(genders)
+    # genders = np.asarray(genders).reshape(len(genders),1)
+    # # genders = np.transpose(genders)
+    # print(genders)
+    return bottlenecks, ground_truths, filenames, bottleneck_rnd.image_lists, genders
 
 
 

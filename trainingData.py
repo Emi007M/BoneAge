@@ -309,16 +309,15 @@ FEMALE = 0
 
 try:
 
-    td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/14-15_labeled_train_validate',
-                                              gender=MALE,
-                                              max_images=None, min_boneage=168, max_boneage=180)
-    td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/14-15_labeled_train_validate',
-                                              gender=FEMALE,
-                                              max_images=None, min_boneage=168, max_boneage=180)
-
-    # td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/M_labeled_train_validate',
+    # td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/14-15_labeled_train_validate',
+    #                                           gender=MALE,
+    #                                           max_images=None, min_boneage=168, max_boneage=180)
+    # td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/14-15_labeled_train_validate',
     #                                           gender=FEMALE,
-    #                                           max_images=20)
+    #                                           max_images=None, min_boneage=168, max_boneage=180)
+
+    td.divideTrainingImagesToTrainAndValidate(dir_to='training_dataset/F_labeled_train_validate',
+                                              gender=FEMALE)
 
 except Exception as e:
     logging.error(traceback.format_exc())

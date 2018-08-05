@@ -21,7 +21,9 @@ import datetime
 rng = np.random
 
 # CHECKPOINT_NAME = '/tmp/_retrain_checkpoint'
-CHECKPOINT_NAME = 'trainer/trained_model3/'
+# CHECKPOINT_NAME = 'trainer/trained_model3/'
+# CHECKPOINT_NAME = 'trainer/trained_model14-15F_lite/'
+CHECKPOINT_NAME = 'trainer/trained_model_FM/'
 FLAGS = None
 
 # Parameters
@@ -60,12 +62,14 @@ def split_data_to_train_and_test():
 
 
 if __name__ == '__main__':
-    name = '12'
+    name = '13'
     # image_dir_folder = 'three_classes'
-    image_dir_folder = 'M_labeled_train_validate'
+    image_dir_folder = 'labeled_train_validate_FM'
     #image_dir_folder = 'X'
 
     epochs = 2
+    # if there are already bottlenecks created, it does not look for what it should look for (if set to 0).
+    # so if new datasets, set to 1 (or change bottlenecks manually)
     create_bottlenecks = 1
 
     params = (name, image_dir_folder, epochs, create_bottlenecks)
@@ -102,6 +106,10 @@ if __name__ == '__main__':
     tf.logging.info("elo. image lists created.")
 
 
+def extract_genders(genders):
+    return np.tile(np.reshape(genders, (-1, 1)), [1, 32])
+
+
 try:
     # Set up the pre-trained graph.
     maybe_download_and_extract(model_info['data_url'])
@@ -110,7 +118,7 @@ try:
 
     # Add final layers to graph description
     (bottleneck_input, ground_truth_input,
-     final_tensor, MAE, train_step) = append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size,
+     final_tensor, MAE, train_step, gender_input) = append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size,
                                                                   learning_rate)
     tf.logging.info("Added final layer.")
 
@@ -192,6 +200,9 @@ try:
             winsound.Beep(540, 200)
             winsound.Beep(640, 300)
             print("Start of epoch " + str(j + 1))
+
+            start_time = time.time()
+            start_time_date = datetime.datetime.now()
             print(time.time())
             print(datetime.datetime.now())
 
@@ -208,7 +219,7 @@ try:
 
             bottleneck_rnd_test = BottlenecksRandomizer('validation', whole_image_lists)
             (all_test_bottlenecks,
-             all_test_ground_truth, _, _) = get_random_cached_bottlenecks(
+             all_test_ground_truth, _, _, all_test_genders) = get_random_cached_bottlenecks(
                 sess, bottleneck_rnd_test, -1,
                 FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
                 decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
@@ -234,7 +245,7 @@ try:
                 merged = tf.summary.merge_all()
 
                 (train_bottlenecks,
-                 train_ground_truth, _, epoch_image_lists) = get_random_cached_bottlenecks(
+                 train_ground_truth, _, epoch_image_lists, train_genders) = get_random_cached_bottlenecks(
                     sess, bottleneck_rnd_train, FLAGS.train_batch_size,
                     FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
                     decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
@@ -253,178 +264,188 @@ try:
                 x = train_bottlenecks
                 y = train_ground_truth
 
+                print("genders")
+                print(train_genders)
+
+                #train_genders = np.reshape(train_genders, (-1, 1))  #
+                #train_genders_32 = extract_genders(train_genders)
+
                 extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-                results, _, _ = sess.run([final_tensor, train_step, extra_update_ops],
+                train_summary, results, _, _ = sess.run([merged, final_tensor, train_step, extra_update_ops],
                                          feed_dict={bottleneck_input: x, ground_truth_input: y,
+                                                    gender_input: extract_genders(train_genders),
                                                     'dense_1/InTrainingMode:0': True})
-                # train_writer.add_summary(summary, i)
+                train_writer.add_summary(train_summary, i)
                 # sess.run(train_step, feed_dict={bottleneck_input: np.array(x).reshape(batch_size, bottleneck_tensor_size), ground_truth_input: np.array(y).reshape(batch_size)})
 
 
 
                 if (i) % display_step == 0:
-                    print("results for labels from training set:")
-                    print(zip(y, results))
+                    print("results for labels from training set: (label, res, gender)")
+                    print(list(zip(y, results, train_genders)))
                     # print("results", str(results))
                     # print("for:", str(y))
                     # print("():", str(x[0]))
 
-                    # results = sess.run([final_tensor],
-                    #                    feed_dict={bottleneck_input: x, ground_truth_input: y})
-                    # print("resultsZ1", str(results))
-                    # print("for:", str(y))
-                    # print("():", str(x[0]))
-                    #
-                    # results = sess.run([final_tensor],
-                    #                    feed_dict={bottleneck_input: x, ground_truth_input: y})
-                    # print("resultsZ1bis", str(results))
-                    # print("for:", str(y))
-                    # print("():", str(x[0]))
-                    #
 
-                    #
-                    # btln_list2 = []
-                    # btln_gt = []
-                    # with open("trainer/tester/imgs/_5185_9483.jpeg_inception_v3.txt", 'r') as bottleneck_file2:
-                    #     bottleneck_string2 = bottleneck_file2.read()
-                    # try:
-                    #     bottleneck_values2 = [float(x) for x in bottleneck_string2.split(',')]
-                    # except ValueError:
-                    #     tf.logging.warning('Invalid float found, recreating bottleneck')
-                    #
-                    # x.append(bottleneck_values2)
-                    # y.append(205)
-                    # results = sess.run([final_tensor],
-                    #                    feed_dict={bottleneck_input: x})
-                    # print("resultsZ", str(results))
-                    # print("for:", str(y))
-                    # print("():", str(x[0]))
-                    #
-                    # del x[15]
-                    # del y[15]
-                    # results = sess.run([final_tensor],
-                    #                    feed_dict={bottleneck_input: x})
-                    # print("resultsZ-", str(results))
-                    # print("for:", str(y))
-                    # print("():", str(x[0]))
-                    #
-                    # del x[0:14]
-                    # del y[0:14]
-                    # results = sess.run([final_tensor],
-                    #                    feed_dict={bottleneck_input: x})
-                    # print("results_2", str(results))
-                    # print("for:", str(255))
-                    # print("():", str(x))
-                    #
-                    # del x[0]
-                    # results = sess.run([final_tensor],
-                    #                    feed_dict={bottleneck_input: x})
-                    # print("results_3", str(results))
-                    # print("for:", str(255))
-                    # print("():", str(x))
-                    #
-
-
-
-                    c = sess.run(MAE, feed_dict={bottleneck_input: all_test_bottlenecks,
-                                                 ground_truth_input: all_test_ground_truth})
-                    # validation_writer.add_summary(summary, i)
+                    validation_summary, c = sess.run([merged, MAE],
+                                                     feed_dict={bottleneck_input: all_test_bottlenecks,
+                                                                ground_truth_input: all_test_ground_truth,
+                                                                gender_input: extract_genders(all_test_genders)})
+                    validation_writer.add_summary(validation_summary, i)
                     # c = sess.run(MAE, feed_dict={bottleneck_input: train_X, ground_truth_input: train_Y})
                     cost_y.append(c)
                     tf.logging.info("validation MAE: " + '%.5f' % c)
+                    tf.logging.info("for batch of size: " +  str(len(all_test_ground_truth)))
 
-                    bottleneck_values = run_bottleneck_on_image(
-                        sess, image_data, jpeg_data_tensor, decoded_image_tensor,
-                        resized_image_tensor, bottleneck_tensor)
 
-                    # img_result = sess.run('Mul_1:0', {
-                    #     'DecodeJPGInput:0': image_data
-                    # })
-                    # img_result = np.reshape(img_result, (299, 299, 3))
-                    # print("decoded img bytes: " + str(img_result))
 
-                    # print("bottlen img bytes: " + str(bottleneck_values))
-                    # print(img_result.size)
-                    # print(bottleneck_values.size)
-                    bottleneck_values = np.reshape(bottleneck_values, (1, 2048))
-                    # [result, bias, pool, btln] = sess.run(['Reshape:0', 'dense_2/bias/read:0', 'pool_3/_reshape:0', 'BottleneckInput:0'], {
-                    #     'DecodeJpeg:0': img_result
-                    # })
-                    # print("bott_ou img bytes: " + str(pool))
-                    # print("bott_in img bytes: " + str(btln))
-                    img_name = os.path.basename(img_dir)
-                    # print("Image: " + img_name + " age: " + str(result))
-                    # print("dense 2 bias:" + str(bias[0:5]))
+                    # slendr = [5, 2, 2, 5, 2, 5]
+                    # gender = np.array([1, 0, 0, 1, 0, 1])
+                    #
+                    # indices = np.nonzero(gender > 0)[0]
+                    #
+                    # print(indices)
+                    # print([slendr[x] for x in indices])
 
-                    # [result, bias, pool, btln] = sess.run(
-                    #     ['Reshape:0', 'dense_2/bias/read:0', 'pool_3/_reshape:0', 'BottleneckInput:0'], {
-                    #         'BottleneckInput:0': bottleneck_values
+                    # divide validation set for M and F
+                    M_indices = np.nonzero(np.asarray(all_test_genders) > 0)[0]
+                    F_indices = np.nonzero(np.asarray(all_test_genders) < 1)[0]
+
+                    # run test Male
+                    if len(M_indices) > 0:
+                        test_btln_M = [all_test_bottlenecks[x] for x in M_indices]
+                        test_grnt_M = [all_test_ground_truth[x] for x in M_indices]
+                        test_gend_M = [all_test_genders[x] for x in M_indices]
+
+                        res, c = sess.run([final_tensor, MAE],
+                                          feed_dict={bottleneck_input: test_btln_M,
+                                                     ground_truth_input: test_grnt_M,
+                                                     gender_input: extract_genders(test_gend_M)})
+                        cost_y.append(c)
+                        tf.logging.info("validation M MAE: " + '%.5f' % c)
+                        tf.logging.info("for batch of size: " + str(len(test_gend_M)))
+                        tf.logging.info(list(zip(test_grnt_M, res, test_gend_M)))
+
+                    # run test Female
+                    if len(F_indices) > 0:
+                        test_btln_F = [all_test_bottlenecks[x] for x in F_indices]
+                        test_grnt_F = [all_test_ground_truth[x] for x in F_indices]
+                        test_gend_F = [all_test_genders[x] for x in F_indices]
+
+                        res, c = sess.run([final_tensor, MAE],
+                                          feed_dict={bottleneck_input: test_btln_F,
+                                                     ground_truth_input: test_grnt_F,
+                                                     gender_input: extract_genders(test_gend_F)})
+                        cost_y.append(c)
+                        tf.logging.info("validation F MAE: " + '%.5f' % c)
+                        tf.logging.info("for batch of size: " + str(len(test_gend_F)))
+                        tf.logging.info(list(zip(test_grnt_F, res, test_gend_F)))
+
+                    tf.logging.info("-----")
+
+                    # ////////////////
+
+                    # todo
+                    # bottleneck_values = run_bottleneck_on_image(
+                    #     sess, image_data, jpeg_data_tensor, decoded_image_tensor,
+                    #     resized_image_tensor, bottleneck_tensor)
+                    #
+                    # # img_result = sess.run('Mul_1:0', {
+                    # #     'DecodeJPGInput:0': image_data
+                    # # })
+                    # # img_result = np.reshape(img_result, (299, 299, 3))
+                    # # print("decoded img bytes: " + str(img_result))
+                    #
+                    # # print("bottlen img bytes: " + str(bottleneck_values))
+                    # # print(img_result.size)
+                    # # print(bottleneck_values.size)
+                    # bottleneck_values = np.reshape(bottleneck_values, (1, 2048))
+                    # # [result, bias, pool, btln] = sess.run(['Reshape:0', 'dense_2/bias/read:0', 'pool_3/_reshape:0', 'BottleneckInput:0'], {
+                    # #     'DecodeJpeg:0': img_result
+                    # # })
+                    # # print("bott_ou img bytes: " + str(pool))
+                    # # print("bott_in img bytes: " + str(btln))
+                    # img_name = os.path.basename(img_dir)
+                    # # print("Image: " + img_name + " age: " + str(result))
+                    # # print("dense 2 bias:" + str(bias[0:5]))
+                    #
+                    # # [result, bias, pool, btln] = sess.run(
+                    # #     ['Reshape:0', 'dense_2/bias/read:0', 'pool_3/_reshape:0', 'BottleneckInput:0'], {
+                    # #         'BottleneckInput:0': bottleneck_values
+                    # #     })
+                    # # print("xott_ou img bytes: " + str(pool))
+                    # # print("bott_in img bytes: " + str(btln))
+                    # # img_name = os.path.basename(img_dir)
+                    # # print("Image: " + img_name + " age: " + str(result))
+                    # # print("dense 2 bias:" + str(bias[0:5]))
+                    #
+                    # # btln_list = []
+                    # # bottleneck_string = ','.join(str(x) for x in bottleneck_values)
+                    # # with open("trainer/tester/imgs/"+img_name+".txt", 'w') as bottleneck_file:
+                    # #     bottleneck_file.write(bottleneck_string)
+                    # # with open("trainer/tester/imgs/"+img_name+".txt", 'r') as bottleneck_file:
+                    # #     bottleneck_string = bottleneck_file.read()
+                    # # try:
+                    # #     bottleneck_values = [float(x) for x in bottleneck_string.split(',')]
+                    # # except ValueError:
+                    # #     tf.logging.warning('Invalid float found, recreating bottleneck')
+                    # # btln_list.append(bottleneck_values)
+                    #
+                    #
+                    # #
+                    # # btln_list = np.reshape(btln_list, (1, 2048))
+                    # [result] = sess.run(
+                    #     [final_tensor], {
+                    #         bottleneck_input: bottleneck_values
                     #     })
-                    # print("xott_ou img bytes: " + str(pool))
-                    # print("bott_in img bytes: " + str(btln))
-                    # img_name = os.path.basename(img_dir)
-                    # print("Image: " + img_name + " age: " + str(result))
-                    # print("dense 2 bias:" + str(bias[0:5]))
-
-                    # btln_list = []
-                    # bottleneck_string = ','.join(str(x) for x in bottleneck_values)
-                    # with open("trainer/tester/imgs/"+img_name+".txt", 'w') as bottleneck_file:
-                    #     bottleneck_file.write(bottleneck_string)
-                    # with open("trainer/tester/imgs/"+img_name+".txt", 'r') as bottleneck_file:
-                    #     bottleneck_string = bottleneck_file.read()
-                    # try:
-                    #     bottleneck_values = [float(x) for x in bottleneck_string.split(',')]
-                    # except ValueError:
-                    #     tf.logging.warning('Invalid float found, recreating bottleneck')
-                    # btln_list.append(bottleneck_values)
-
-
+                    # # print("xxtt_ou img bytes: " + str(pool))
+                    # # print("bott_in img bytes: " + str(btln))
+                    # # img_name = os.path.basename(img_dir)
+                    # print("XImage: " + img_name + " age: " + str(result))
+                    # # print("dense 2 bias:" + str(bias[0:5]))
                     #
-                    # btln_list = np.reshape(btln_list, (1, 2048))
-                    [result] = sess.run(
-                        [final_tensor], {
-                            bottleneck_input: bottleneck_values
-                        })
-                    # print("xxtt_ou img bytes: " + str(pool))
-                    # print("bott_in img bytes: " + str(btln))
-                    # img_name = os.path.basename(img_dir)
-                    print("XImage: " + img_name + " age: " + str(result))
-                    # print("dense 2 bias:" + str(bias[0:5]))
-
-                    # resultsx = sess.run([final_tensor],
-                    #                     feed_dict={bottleneck_input: btln_list, ground_truth_input: [204]})
-                    # print("resultsx", str(resultsx))
-                    # print("for:", str([204]))
-                    # print("():", str(btln_list[0]))
-                    #
-                    # ###
-                    # btln_list2 = []
-                    # btln_gt = []
-                    # with open("trainer/tester/imgs/_5185_9483.jpeg_inception_v3.txt", 'r') as bottleneck_file2:
-                    #     bottleneck_string2 = bottleneck_file2.read()
-                    # try:
-                    #     bottleneck_values2 = [float(x) for x in bottleneck_string2.split(',')]
-                    # except ValueError:
-                    #     tf.logging.warning('Invalid float found, recreating bottleneck')
-                    # for i in range(16):
-                    #     btln_list2.append(bottleneck_values2)
-                    #     btln_gt.append(204)
-                    #
-                    # resultsxx = sess.run([final_tensor],
-                    #                     feed_dict={bottleneck_input: btln_list2, ground_truth_input: btln_gt})
-                    # # results, _ = sess.run([final_tensor, train_step],
-                    # #                       feed_dict={bottleneck_input: x, ground_truth_input: y})
-                    #
-                    # print("resultsxxx", str(resultsxx))
-                    # print("for:", str([204]))
-                    # print("():", str(btln_list2[0]))
+                    # # resultsx = sess.run([final_tensor],
+                    # #                     feed_dict={bottleneck_input: btln_list, ground_truth_input: [204]})
+                    # # print("resultsx", str(resultsx))
+                    # # print("for:", str([204]))
+                    # # print("():", str(btln_list[0]))
+                    # #
+                    # # ###
+                    # # btln_list2 = []
+                    # # btln_gt = []
+                    # # with open("trainer/tester/imgs/_5185_9483.jpeg_inception_v3.txt", 'r') as bottleneck_file2:
+                    # #     bottleneck_string2 = bottleneck_file2.read()
+                    # # try:
+                    # #     bottleneck_values2 = [float(x) for x in bottleneck_string2.split(',')]
+                    # # except ValueError:
+                    # #     tf.logging.warning('Invalid float found, recreating bottleneck')
+                    # # for i in range(16):
+                    # #     btln_list2.append(bottleneck_values2)
+                    # #     btln_gt.append(204)
+                    # #
+                    # # resultsxx = sess.run([final_tensor],
+                    # #                     feed_dict={bottleneck_input: btln_list2, ground_truth_input: btln_gt})
+                    # # # results, _ = sess.run([final_tensor, train_step],
+                    # # #                       feed_dict={bottleneck_input: x, ground_truth_input: y})
+                    # #
+                    # # print("resultsxxx", str(resultsxx))
+                    # # print("for:", str([204]))
+                    # # print("():", str(btln_list2[0]))
+                    #todo up
 
                 # Display logs per epoch step
                 # tf.logging.log_every_n(tf.logging.INFO, ("MAE:", c), 20)
                 # if (i) % display_step == 0:
                 #     print("Epoch:", '%04d' % (epoch + 1), "cost=", "{:.9f}".format(c))  # ,# \
                 #
+
                 i += 1
+
+                if i % 1000 is 0:
+                    # save every x
+                    saver.save(sess, CHECKPOINT_NAME + 'model_iter_i', global_step=i)
+                    tf.logging.info("1000th checkpoint saved in " + CHECKPOINT_NAME)
 
 
 
@@ -447,6 +468,7 @@ try:
             # save every epoch
             saver.save(sess, CHECKPOINT_NAME + 'model_iter', global_step=j)
             tf.logging.info("checkpoint saved in " + CHECKPOINT_NAME)
+            print("TIME:", time.time() - start_time)
 
         # after all the epochs save final model for the last time
 
@@ -458,11 +480,13 @@ try:
         tf.logging.info("training completed. model saved in " + CHECKPOINT_NAME)
         print(time.time())
         print(datetime.datetime.now())
+        print("TIME:", time.time() - start_time)
+        print("from:" + str(start_time_date))
 
         ####################################
 
 
-        start_time = time.time()
+        # start_time = time.time()
         i = 0
         # for (x, y) in zip(train_X, train_Y):
         #     print("elo:", x, y)
