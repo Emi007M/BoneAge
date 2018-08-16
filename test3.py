@@ -1,15 +1,8 @@
-
 from __future__ import print_function
 
-import tensorflow as tf
-import numpy as np
-from tensorflow.python.saved_model import tag_constants
-import matplotlib.pyplot as plt
 import time
-
 import traceback
 import logging
-
 
 from trainer.params_extractor import extract_parameters
 from trainer.tf_methods import *
@@ -17,18 +10,22 @@ from trainer.graph_final_layer import append_final_layer_to_graph
 import pickle
 import winsound
 import datetime
+import argparse
 
 rng = np.random
 
 # CHECKPOINT_NAME = '/tmp/_retrain_checkpoint'
 # CHECKPOINT_NAME = 'trainer/trained_model3/'
 # CHECKPOINT_NAME = 'trainer/trained_model14-15F_lite/'
-CHECKPOINT_NAME = 'trainer/trained_model_FM/'
+d = 'C:/Users/Emilia/Pycharm Projects/BoneAge/'
+CHECKPOINT_NAME = d + 'trainer/trained_model_FM7/'
+
 FLAGS = None
 
 # Parameters
 learning_rate = 0.001
-display_step = 20
+display_step = 50
+checkpoint_every_n_batches_step = 4000
 
 batch_size = 16
 bottleneck_tensor_size = 2048
@@ -38,39 +35,30 @@ cost_y = []
 is_training = 1
 
 
-def init_data():
-    global data_X, data_Y
-    data_X = np.arange(200, step=0.2)
-    data_Y = data_X + 20 * np.sin(data_X / 10)
-    return shuffle_data(data_X, data_Y)
+def extract_genders(genders):
+    return np.tile(np.reshape(genders, (-1, 1)), [1, 32])
 
 
-def shuffle_data(X, Y):
-    data_X_Y = list(zip(X, Y))
-    rng.shuffle(data_X_Y)
-    return zip(*data_X_Y)
-
-
-def split_data_to_train_and_test():
-    global train_X, train_Y, test_X, test_Y
-    data_size = len(data_X)
-    train_X = np.asarray(data_X[:int(data_size * 0.9)])
-    train_Y = np.asarray(data_Y[:int(data_size * 0.9)])
-    test_X = np.asarray(data_X[int(data_size * 0.9):])
-    test_Y = np.asarray(data_Y[int(data_size * 0.9):])
-    return (train_X, train_Y, test_X, test_Y)
+def save_curr_model(_dir, file_name, _start_time_date, global_step):
+    if global_step:
+        saver.save(sess, _dir + file_name, global_step=global_step)
+    else:
+        saver.save(sess, _dir + file_name)
+    tf.logging.info("checkpoint saved in " + _dir)
+    print("current time:" + str(datetime.datetime.now()))
+    print("from:" + str(_start_time_date))
 
 
 if __name__ == '__main__':
     name = '13'
     # image_dir_folder = 'three_classes'
-    image_dir_folder = 'labeled_train_validate_FM'
+    image_dir_folder = 'FM_labeled_train_validate'
     #image_dir_folder = 'X'
 
-    epochs = 2
+    epochs = 10
     # if there are already bottlenecks created, it does not look for what it should look for (if set to 0).
     # so if new datasets, set to 1 (or change bottlenecks manually)
-    create_bottlenecks = 1
+    create_bottlenecks = 0
 
     params = (name, image_dir_folder, epochs, create_bottlenecks)
     FLAGS, unparsed = extract_parameters(argparse.ArgumentParser(), params)
@@ -104,11 +92,6 @@ if __name__ == '__main__':
     winsound.Beep(440, 200)
 
     tf.logging.info("elo. image lists created.")
-
-
-def extract_genders(genders):
-    return np.tile(np.reshape(genders, (-1, 1)), [1, 32])
-
 
 try:
     # Set up the pre-trained graph.
@@ -169,6 +152,9 @@ try:
 
         validation_writer = tf.summary.FileWriter(
             FLAGS.summaries_dir + '/validation')
+
+        train_x_writer = tf.summary.FileWriter(
+            FLAGS.summaries_dir + '/train_whole_set')
 
         # Create a train saver that is used to restore values into an eval graph
         # when exporting models.
@@ -232,6 +218,9 @@ try:
 
             tf.logging.info("starting epoch %d" % j)
 
+            merged = tf.summary.merge_all()
+            extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
             for s in range(steps_in_epoch):
                 if len(epoch_image_lists.keys()) is 0:
                     tf.logging.info("too many steps")
@@ -242,10 +231,13 @@ try:
                 #                   j * FLAGS.train_batch_size: j * FLAGS.train_batch_size + FLAGS.train_batch_size]
                 # train_ground_truth = all_train_ground_truth[
                 #                   j * FLAGS.train_batch_size: j * FLAGS.train_batch_size + FLAGS.train_batch_size]
-                merged = tf.summary.merge_all()
 
-                (train_bottlenecks,
-                 train_ground_truth, _, epoch_image_lists, train_genders) = get_random_cached_bottlenecks(
+
+                # przypisanie
+                # x = train_bottlenecks
+                # y = train_ground_truth
+                (x,
+                 y, _, epoch_image_lists, train_genders) = get_random_cached_bottlenecks(
                     sess, bottleneck_rnd_train, FLAGS.train_batch_size,
                     FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
                     decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
@@ -261,8 +253,8 @@ try:
                 #                ground_truth_input: train_ground_truth})
                 # train_writer.add_summary(train_summary, i)
 
-                x = train_bottlenecks
-                y = train_ground_truth
+                # x = train_bottlenecks
+                # y = train_ground_truth
 
                 print("genders")
                 print(train_genders)
@@ -270,7 +262,7 @@ try:
                 #train_genders = np.reshape(train_genders, (-1, 1))  #
                 #train_genders_32 = extract_genders(train_genders)
 
-                extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+                # extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
                 train_summary, results, _, _ = sess.run([merged, final_tensor, train_step, extra_update_ops],
                                          feed_dict={bottleneck_input: x, ground_truth_input: y,
                                                     gender_input: extract_genders(train_genders),
@@ -282,7 +274,7 @@ try:
 
                 if (i) % display_step == 0:
                     print("results for labels from training set: (label, res, gender)")
-                    print(list(zip(y, results, train_genders)))
+                    print(list(zip(y, results, train_genders))[0:5])
                     # print("results", str(results))
                     # print("for:", str(y))
                     # print("():", str(x[0]))
@@ -294,11 +286,35 @@ try:
                                                                 gender_input: extract_genders(all_test_genders)})
                     validation_writer.add_summary(validation_summary, i)
                     # c = sess.run(MAE, feed_dict={bottleneck_input: train_X, ground_truth_input: train_Y})
-                    cost_y.append(c)
+                    # XXXXXX
+                    # cost_y.append(c)
                     tf.logging.info("validation MAE: " + '%.5f' % c)
                     tf.logging.info("for batch of size: " +  str(len(all_test_ground_truth)))
 
+                    ####### todo mae from whole training set
 
+                    # bottleneck_rnd_train_x = BottlenecksRandomizer('training', whole_image_lists)
+                    # (all_train_bottlenecks,
+                    #  all_train_ground_truth, _, _, all_train_genders) = get_random_cached_bottlenecks(
+                    #     sess, bottleneck_rnd_train_x, -1,
+                    #     FLAGS.bottleneck_dir, FLAGS.image_dir, jpeg_data_tensor,
+                    #     decoded_image_tensor, resized_image_tensor, bottleneck_tensor,
+                    #     FLAGS.architecture)
+                    #
+                    # train_x_summary, c = sess.run([merged, MAE],
+                    #                                  feed_dict={bottleneck_input: all_train_bottlenecks,
+                    #                                             ground_truth_input: all_train_ground_truth,
+                    #                                             gender_input: extract_genders(all_train_genders)})
+                    # train_x_writer.add_summary(train_x_summary, i)
+                    ########
+
+                    # c = sess.run(MAE, feed_dict={bottleneck_input: train_X, ground_truth_input: train_Y})
+
+                    # cost_y.append(c)
+                    # tf.logging.info("train whole set MAE: " + '%.5f' % c)
+                    # tf.logging.info("for batch of size: " + str(len(all_train_ground_truth)))
+
+                    # XXXXXX
 
                     # slendr = [5, 2, 2, 5, 2, 5]
                     # gender = np.array([1, 0, 0, 1, 0, 1])
@@ -322,10 +338,10 @@ try:
                                           feed_dict={bottleneck_input: test_btln_M,
                                                      ground_truth_input: test_grnt_M,
                                                      gender_input: extract_genders(test_gend_M)})
-                        cost_y.append(c)
+                        #cost_y.append(c)
                         tf.logging.info("validation M MAE: " + '%.5f' % c)
                         tf.logging.info("for batch of size: " + str(len(test_gend_M)))
-                        tf.logging.info(list(zip(test_grnt_M, res, test_gend_M)))
+                        tf.logging.info(list(zip(test_grnt_M, res, test_gend_M))[0:5])
 
                     # run test Female
                     if len(F_indices) > 0:
@@ -337,102 +353,13 @@ try:
                                           feed_dict={bottleneck_input: test_btln_F,
                                                      ground_truth_input: test_grnt_F,
                                                      gender_input: extract_genders(test_gend_F)})
-                        cost_y.append(c)
+                        #cost_y.append(c)
                         tf.logging.info("validation F MAE: " + '%.5f' % c)
                         tf.logging.info("for batch of size: " + str(len(test_gend_F)))
-                        tf.logging.info(list(zip(test_grnt_F, res, test_gend_F)))
+                        tf.logging.info(list(zip(test_grnt_F, res, test_gend_F))[0:5])
 
                     tf.logging.info("-----")
 
-                    # ////////////////
-
-                    # todo
-                    # bottleneck_values = run_bottleneck_on_image(
-                    #     sess, image_data, jpeg_data_tensor, decoded_image_tensor,
-                    #     resized_image_tensor, bottleneck_tensor)
-                    #
-                    # # img_result = sess.run('Mul_1:0', {
-                    # #     'DecodeJPGInput:0': image_data
-                    # # })
-                    # # img_result = np.reshape(img_result, (299, 299, 3))
-                    # # print("decoded img bytes: " + str(img_result))
-                    #
-                    # # print("bottlen img bytes: " + str(bottleneck_values))
-                    # # print(img_result.size)
-                    # # print(bottleneck_values.size)
-                    # bottleneck_values = np.reshape(bottleneck_values, (1, 2048))
-                    # # [result, bias, pool, btln] = sess.run(['Reshape:0', 'dense_2/bias/read:0', 'pool_3/_reshape:0', 'BottleneckInput:0'], {
-                    # #     'DecodeJpeg:0': img_result
-                    # # })
-                    # # print("bott_ou img bytes: " + str(pool))
-                    # # print("bott_in img bytes: " + str(btln))
-                    # img_name = os.path.basename(img_dir)
-                    # # print("Image: " + img_name + " age: " + str(result))
-                    # # print("dense 2 bias:" + str(bias[0:5]))
-                    #
-                    # # [result, bias, pool, btln] = sess.run(
-                    # #     ['Reshape:0', 'dense_2/bias/read:0', 'pool_3/_reshape:0', 'BottleneckInput:0'], {
-                    # #         'BottleneckInput:0': bottleneck_values
-                    # #     })
-                    # # print("xott_ou img bytes: " + str(pool))
-                    # # print("bott_in img bytes: " + str(btln))
-                    # # img_name = os.path.basename(img_dir)
-                    # # print("Image: " + img_name + " age: " + str(result))
-                    # # print("dense 2 bias:" + str(bias[0:5]))
-                    #
-                    # # btln_list = []
-                    # # bottleneck_string = ','.join(str(x) for x in bottleneck_values)
-                    # # with open("trainer/tester/imgs/"+img_name+".txt", 'w') as bottleneck_file:
-                    # #     bottleneck_file.write(bottleneck_string)
-                    # # with open("trainer/tester/imgs/"+img_name+".txt", 'r') as bottleneck_file:
-                    # #     bottleneck_string = bottleneck_file.read()
-                    # # try:
-                    # #     bottleneck_values = [float(x) for x in bottleneck_string.split(',')]
-                    # # except ValueError:
-                    # #     tf.logging.warning('Invalid float found, recreating bottleneck')
-                    # # btln_list.append(bottleneck_values)
-                    #
-                    #
-                    # #
-                    # # btln_list = np.reshape(btln_list, (1, 2048))
-                    # [result] = sess.run(
-                    #     [final_tensor], {
-                    #         bottleneck_input: bottleneck_values
-                    #     })
-                    # # print("xxtt_ou img bytes: " + str(pool))
-                    # # print("bott_in img bytes: " + str(btln))
-                    # # img_name = os.path.basename(img_dir)
-                    # print("XImage: " + img_name + " age: " + str(result))
-                    # # print("dense 2 bias:" + str(bias[0:5]))
-                    #
-                    # # resultsx = sess.run([final_tensor],
-                    # #                     feed_dict={bottleneck_input: btln_list, ground_truth_input: [204]})
-                    # # print("resultsx", str(resultsx))
-                    # # print("for:", str([204]))
-                    # # print("():", str(btln_list[0]))
-                    # #
-                    # # ###
-                    # # btln_list2 = []
-                    # # btln_gt = []
-                    # # with open("trainer/tester/imgs/_5185_9483.jpeg_inception_v3.txt", 'r') as bottleneck_file2:
-                    # #     bottleneck_string2 = bottleneck_file2.read()
-                    # # try:
-                    # #     bottleneck_values2 = [float(x) for x in bottleneck_string2.split(',')]
-                    # # except ValueError:
-                    # #     tf.logging.warning('Invalid float found, recreating bottleneck')
-                    # # for i in range(16):
-                    # #     btln_list2.append(bottleneck_values2)
-                    # #     btln_gt.append(204)
-                    # #
-                    # # resultsxx = sess.run([final_tensor],
-                    # #                     feed_dict={bottleneck_input: btln_list2, ground_truth_input: btln_gt})
-                    # # # results, _ = sess.run([final_tensor, train_step],
-                    # # #                       feed_dict={bottleneck_input: x, ground_truth_input: y})
-                    # #
-                    # # print("resultsxxx", str(resultsxx))
-                    # # print("for:", str([204]))
-                    # # print("():", str(btln_list2[0]))
-                    #todo up
 
                 # Display logs per epoch step
                 # tf.logging.log_every_n(tf.logging.INFO, ("MAE:", c), 20)
@@ -442,128 +369,22 @@ try:
 
                 i += 1
 
-                if i % 1000 is 0:
+                if i % checkpoint_every_n_batches_step is 0:
                     # save every x
-                    saver.save(sess, CHECKPOINT_NAME + 'model_iter_i', global_step=i)
-                    tf.logging.info("1000th checkpoint saved in " + CHECKPOINT_NAME)
+                    save_curr_model(CHECKPOINT_NAME, 'model_iter_i', start_time_date, i)
 
-
-
-                # # Store intermediate results
-                # intermediate_frequency = FLAGS.intermediate_store_frequency
-                #
-                # if (intermediate_frequency > 0 and (i % intermediate_frequency == 0)
-                #     and i > 0):
-                #   # If we want to do an intermediate save, save a checkpoint of the train
-                #   # graph, to restore into the eval graph.
-                #   train_saver.save(sess, CHECKPOINT_NAME)
-                #   intermediate_file_name = (FLAGS.intermediate_output_graphs_dir +
-                #                             'intermediate_' + str(i) + '.pb')
-                #   tf.logging.info('Save intermediate result to : ' +
-                #                   intermediate_file_name)
-                #   save_graph_to_file(graph, intermediate_file_name, model_info,
-                #                      class_count)
-
-            # train_saver.save(sess, CHECKPOINT_NAME)
             # save every epoch
-            saver.save(sess, CHECKPOINT_NAME + 'model_iter', global_step=j)
-            tf.logging.info("checkpoint saved in " + CHECKPOINT_NAME)
-            print("TIME:", time.time() - start_time)
+            save_curr_model(CHECKPOINT_NAME, 'model_iter', start_time_date, j)
 
         # after all the epochs save final model for the last time
-
         winsound.Beep(640, 100)
         winsound.Beep(540, 500)
         winsound.Beep(440, 1000)
 
-        saver.save(sess, CHECKPOINT_NAME + 'model_final')
-        tf.logging.info("training completed. model saved in " + CHECKPOINT_NAME)
-        print(time.time())
-        print(datetime.datetime.now())
-        print("TIME:", time.time() - start_time)
-        print("from:" + str(start_time_date))
+        save_curr_model(CHECKPOINT_NAME, 'model_final', start_time_date)
 
         ####################################
 
-
-        # start_time = time.time()
-        i = 0
-        # for (x, y) in zip(train_X, train_Y):
-        #     print("elo:", x, y)
-        # Run the initializer
-        # sess.run(init)
-
-        # # Fit all training data
-        # for epoch in range(training_epochs):
-        #     # add batch size
-        #     train_X, train_Y = shuffle_data(train_X, train_Y)
-        #
-        #     for batch_index in batch_index_list:
-        #         i+=1
-        #
-        #         x = train_X[batch_index:batch_index+batch_size]
-        #         y = train_Y[batch_index:batch_index+batch_size]
-        #         #for (x, y) in zip(train_X, train_Y):
-        #         #print("elo:", x, y)
-        #         # sess.run(optimizer, feed_dict={X: x, Y: y})
-        #         sess.run(train_step, feed_dict={bottleneck_input: x, ground_truth_input: y})
-        #         #sess.run(train_step, feed_dict={bottleneck_input: np.array(x).reshape(batch_size, bottleneck_tensor_size), ground_truth_input: np.array(y).reshape(batch_size)})
-        #
-        #         c = sess.run(MAE, feed_dict={bottleneck_input: train_X, ground_truth_input:train_Y})
-        #         cost_y.append(c)
-        #         # Display logs per epoch step
-        #         if (i) % display_step == 0:
-        #             print("Epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(c))#,# \
-        #
-        # print("TIME:", time.time()-start_time)
-        # print("Optimization Finished!")
-        # # training_cost = sess.run(cost, feed_dict={X: train_X, Y: train_Y})
-        # training_cost = sess.run(MAE, feed_dict={bottleneck_input: train_X, ground_truth_input:train_Y})
-        # print("Training cost=", training_cost)#, "W=", sess.run(W), "b=", sess.run(b), '\n')
-        #
-        # # convert data
-        # train_X = np.array(train_X)
-        # train_Y = np.array(train_Y)
-        # test_X = np.array(test_X)
-        # test_Y = np.array(test_Y)
-
-        # Graphic display
-
-        # cost function
-        cost_x = np.arange(len(cost_y))
-
-        cost_epochs_x = np.arange(0, len(cost_y), int(len(cost_y) / epochs))
-        cost_epochs_y = []
-        for x in cost_epochs_x:
-            cost_epochs_y.append(cost_y[x])
-        plt.plot(cost_x, cost_y, 'b-', label='MAE')
-        plt.plot(cost_epochs_x, cost_epochs_y, 'r.', label='MAE after epochs')
-        plt.legend()
-        plt.show()
-
-
-
-        # # print(np.array(train_X)[:,0])
-        # # print(np.array(train_Y))
-        # plt.plot(train_X[:,0], train_Y, 'r.', label='Original data')
-        # # plt.plot(train_X, sess.run(W) * train_X + sess.run(b), label='Fitted line')
-        # print(sess.run(final_tensor, feed_dict={bottleneck_input: train_X}))
-        # plt.plot(train_X[:,0], sess.run(final_tensor, feed_dict={bottleneck_input: train_X}), 'bx', label='Fitted line')
-        # plt.legend()
-        # plt.show()
-        #
-        #
-        #
-        # print("Testing... (Mean square loss Comparison)")
-        # testing_cost = sess.run(MAE, feed_dict={bottleneck_input: test_X, ground_truth_input: test_Y})
-        # print("Testing cost=", testing_cost)
-        # print("Absolute mean square loss difference:", abs(
-        #     training_cost - testing_cost))
-        #
-        # plt.plot(test_X[:,0], test_Y, 'g.', label='Testing data')
-        # plt.plot(test_X[:, 0], sess.run(final_tensor, feed_dict={bottleneck_input: test_X}), 'bx', label='Fitted line')
-        # plt.legend()
-        # plt.show()
 
 except Exception as e:
     logging.error(traceback.format_exc())

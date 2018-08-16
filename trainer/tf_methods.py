@@ -1,8 +1,5 @@
-
-import argparse
 import hashlib
 import os.path
-import random
 import re
 import sys
 import tarfile
@@ -12,13 +9,10 @@ from six.moves import urllib
 import tensorflow as tf
 
 from tensorflow.python.framework import graph_util
-from tensorflow.python.framework import tensor_shape
 from tensorflow.python.platform import gfile
 from tensorflow.python.util import compat
 from shutil import copyfile
 import pickle
-import array
-
 
 from trainer.bottlenecks_randomizer import BottlenecksRandomizer
 
@@ -31,6 +25,14 @@ def initFlags(_flags):
     global FLAGS
     FLAGS = _flags
 
+
+def scaleAge(value):
+    "from real age <0;230> to <-1;1>"
+    "(value * 2) / 230 - 1 "
+    return value / 115 - 1
+
+def unscaleAge(value):
+    return (value + 1) * 115
 
 
 def create_image_lists(image_dir, testing_percentage, validation_percentage):

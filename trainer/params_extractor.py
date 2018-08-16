@@ -5,18 +5,34 @@ from time import gmtime, strftime
 def extract_parameters(parser, params):
     (name, image_dir_folder, epochs, create_bottlenecks) = params
 
+    d = 'C:/Users/Emilia/Pycharm Projects/BoneAge/'
+
+    # parser.add_argument(
+    #     '--image_dir',
+    #     type=str,
+    #     default='training_dataset/' + image_dir_folder,
+    #     help='Path to folders of labeled images.'
+    # )
+    # parser.add_argument(
+    #     '--bottleneck_dir',
+    #     type=str,
+    #     default='model/bottleneck/' + image_dir_folder,
+    #     help='Path to cache bottleneck layer values as files.'
+    # )
+
     parser.add_argument(
         '--image_dir',
         type=str,
-        default='training_dataset/' + image_dir_folder,
+        default= d + 'training_dataset/'+ image_dir_folder,
         help='Path to folders of labeled images.'
     )
     parser.add_argument(
         '--bottleneck_dir',
         type=str,
-        default='model/bottleneck/' + image_dir_folder,
+        default= d + 'bottleneck/' + image_dir_folder,
         help='Path to cache bottleneck layer values as files.'
     )
+
     parser.add_argument(
         '--create_bottlenecks',
         type=str,
@@ -26,7 +42,7 @@ def extract_parameters(parser, params):
     parser.add_argument(
         '--output_graph',
         type=str,
-        default='model/output_graph/' + name + '/output_graph' + '-' + strftime("%m-%d %H.%M.%S", gmtime()),
+        default= d +'model/output_graph/' + name + '/output_graph' + '-' + strftime("%m-%d %H.%M.%S", gmtime()),
         help='Where to save the trained graph.'
     )
     parser.add_argument(
@@ -38,7 +54,7 @@ def extract_parameters(parser, params):
     parser.add_argument(
         '--intermediate_output_graphs_dir',
         type=str,
-        default='model/intermediate_graph/' + name + '/',
+        default= d +'model/intermediate_graph/' + name + '/',
         help='Where to save the intermediate graphs.'
     )
     parser.add_argument(
@@ -53,13 +69,13 @@ def extract_parameters(parser, params):
     parser.add_argument(
         '--output_labels',
         type=str,
-        default='model/output_labels.txt',
+        default= d +'model/output_labels.txt',
         help='Where to save the trained graph\'s labels.'
     )
     parser.add_argument(
         '--summaries_dir',
         type=str,
-        default='model/models/retrain_logs/' + name + '-' + strftime("%Y-%m-%d %H.%M.%S", gmtime()),
+        default= d +'model/models/retrain_logs/' + name + '-' + strftime("%Y-%m-%d %H.%M.%S", gmtime()),
         help='Where to save summary logs for TensorBoard.'
     )
     parser.add_argument(
@@ -107,7 +123,7 @@ def extract_parameters(parser, params):
     parser.add_argument(
         '--model_dir',
         type=str,
-        default='model/imagenet',
+        default= d +'model/imagenet',
         help="""\
       Path to classify_image_graph_def.pb,
       imagenet_synset_to_human_label_map.txt, and
@@ -131,6 +147,6 @@ def extract_parameters(parser, params):
     parser.add_argument(
         '--saved_model_dir',
         type=str,
-        default='model/saved_models/' + name + '-' + strftime("%Y-%m-%d %H.%M.%S", gmtime()) + '/',
+        default= d +'model/saved_models/' + name + '-' + strftime("%Y-%m-%d %H.%M.%S", gmtime()) + '/',
         help='Where to save the exported graph.')
     return parser.parse_known_args()

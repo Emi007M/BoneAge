@@ -1,6 +1,7 @@
 
 import tensorflow as tf
 import numpy as np
+import os
 
 
 def batch_norm(x, scope, is_training, epsilon=0.001, decay=0.99):
@@ -80,11 +81,22 @@ def append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size
         print(tf.shape(gender_input))
 
         dense_gender = tf.layers.dense(inputs=gender_input, units=32, activation=tf.nn.relu, name="dense_gender",
-                                bias_initializer=tf.constant_initializer(np.ones((1, 32))))
+                                bias_initializer=tf.constant_initializer(np.full_like((1, 32), 0.1, dtype=np.double))) #changed from ones
 
-        bottleneck_input = tf.placeholder(tf.float32, [None, bottleneck_tensor_size], 'BottleneckInput')
-        #bottleneck_input = tf.placeholder_with_default(bottleneck_tensor, [None, bottleneck_tensor_size],
-        #                                               'BottleneckInput')
+        tf.summary.histogram('after_dense_g', dense_gender)
+        dg_weights = tf.get_default_graph().get_tensor_by_name(os.path.split(dense_gender.name)[0] + '/kernel:0')
+        tf.summary.histogram('dense_g_weights', dg_weights)
+        dg_biases = tf.get_default_graph().get_tensor_by_name(os.path.split(dense_gender.name)[0] + '/bias:0')
+        tf.summary.histogram('dense_g_biases', dg_biases)
+        # dg_activations = tf.get_default_graph().get_tensor_by_name(os.path.split(dense_gender.name)[0] + '/activations:0')
+        # tf.summary.histogram('dense_g_activations', dg_activations)
+
+
+
+        #was np.ones((1, 32)
+        # bottleneck_input = tf.placeholder(tf.float32, [None, bottleneck_tensor_size], 'BottleneckInput')
+        bottleneck_input = tf.placeholder_with_default(bottleneck_tensor, [None, bottleneck_tensor_size], #got back
+                                                       'BottleneckInput')
         ground_truth_input = tf.placeholder(tf.float32, [None], 'GroundTruthInput')
 
         # with tf.name_scope('dense_1'):
@@ -110,7 +122,7 @@ def append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size
             # byl input > bottleneck_input <, zmienione na concat
             merged_input = tf.concat([dense_gender, bottleneck_input], 1)
             batch_normed = tf.layers.batch_normalization(
-                inputs= merged_input,
+                inputs=merged_input,
                 axis=-1,
                 momentum=0.999,
                 epsilon=1e-3,
@@ -129,15 +141,37 @@ def append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size
             #     .relu(batch_normed)  # ReLu is typically done after batch normalization
             dense1 = tf.nn.relu(batch_normed, name="dense_1_activation_f")
 
+            tf.summary.histogram('dense_1_batch_normed', batch_normed)
+            tf.summary.histogram('after_dense_1_relu', dense1)
+
         dense2 = tf.layers.dense(inputs=dense1, units=1000, activation=tf.nn.relu, name="dense_2",
-                                 bias_initializer=tf.constant_initializer(np.ones((1, 1000))))
+                                 bias_initializer=tf.constant_initializer(np.full_like((1, 1000), 0.1, dtype=np.double))) #changed from ones np.zeros((1, 1000))
+        
+        tf.summary.histogram('after_dense_2', dense2)
+        d2_weights = tf.get_default_graph().get_tensor_by_name(os.path.split(dense2.name)[0] + '/kernel:0')
+        tf.summary.histogram('dense_2_weights', d2_weights)
+        d2_biases = tf.get_default_graph().get_tensor_by_name(os.path.split(dense2.name)[0] + '/bias:0')
+        tf.summary.histogram('dense_2_biases', d2_biases)
+        # d2_activations = tf.get_default_graph().get_tensor_by_name(os.path.split(dense2.name)[0] + '/activation:0')
+        # tf.summary.histogram('dense_2_activations', d2_activations)
+
+
         dense3 = tf.layers.dense(
             inputs=dense2,
             units=1,
             activation=None,
             name="output",
-            bias_initializer=tf.constant_initializer(1.0)
+            bias_initializer=tf.constant_initializer(0.1) #changed from one
         )
+
+        tf.summary.histogram('after_dense_3', dense3)
+        d3_weights = tf.get_default_graph().get_tensor_by_name(os.path.split(dense3.name)[0] + '/kernel:0')
+        tf.summary.histogram('dense_3_weights', d3_weights)
+        d3_biases = tf.get_default_graph().get_tensor_by_name(os.path.split(dense3.name)[0] + '/bias:0')
+        tf.summary.histogram('dense_3_bias', d3_biases)
+        # d3_activations = tf.get_default_graph().get_tensor_by_name(os.path.split(dense3.name)[0] + '/activation:0')
+        # tf.summary.histogram('dense_3_activations', d3_activations)
+
         final_tensor = tf.reshape(dense3, [-1])
 
         with tf.name_scope('MAE'):
