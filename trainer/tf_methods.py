@@ -29,10 +29,20 @@ def initFlags(_flags):
 def scaleAge(value):
     "from real age <0;230> to <-1;1>"
     "(value * 2) / 230 - 1 "
-    return value / 115 - 1
+    return float(value) / 115.0 - 1.0
+    #return tf.subtract(tf.divide(value, 115.0), 1)
 
-def unscaleAge(value):
-    return (value + 1) * 115
+
+def unscaleAge(valueList):
+    # for index, value in enumerate(valueList):
+    #     valueList[index] = (float(value) + 1) * 115
+    # return valueList
+    return [(float(value) + 1.0) * 115.0 for value in valueList]
+    #return tf.scalar_mul(115.0, tf.add(value, 1.0))
+
+def unscaleAgeT(value):
+    #return (float(value) + 1) * 115
+    return tf.scalar_mul(115.0, tf.add(value, 1.0))
 
 
 def create_image_lists(image_dir, testing_percentage, validation_percentage):
@@ -615,7 +625,7 @@ def get_random_cached_bottlenecks(sess, bottleneck_rnd: BottlenecksRandomizer, h
                 bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
                 resized_input_tensor, bottleneck_tensor, architecture)
             bottlenecks.append(bottleneck)
-            ground_truths.append(label_name) # was label_index
+            ground_truths.append(scaleAge(label_name)) # was label_index
             filenames.append(image_name)
             genders.append(1 if os.path.basename(image_name)[0] is 'M' else 0)
             unused_i += 1
@@ -635,7 +645,7 @@ def get_random_cached_bottlenecks(sess, bottleneck_rnd: BottlenecksRandomizer, h
                     bottleneck_dir, jpeg_data_tensor, decoded_image_tensor,
                     resized_input_tensor, bottleneck_tensor, architecture)
                 bottlenecks.append(bottleneck)
-                ground_truths.append(label_name) # was label_index
+                ground_truths.append(scaleAge(label_name)) # was label_index
                 filenames.append(image_name)
 
                 genders.append(1 if os.path.basename(image_name)[0] is 'M' else 0)

@@ -18,7 +18,7 @@ rng = np.random
 # CHECKPOINT_NAME = 'trainer/trained_model3/'
 # CHECKPOINT_NAME = 'trainer/trained_model14-15F_lite/'
 d = 'C:/Users/Emilia/Pycharm Projects/BoneAge/'
-CHECKPOINT_NAME = d + 'trainer/trained_model_FM7/'
+CHECKPOINT_NAME = d + 'trainer/trained_model_FM10/'
 
 FLAGS = None
 
@@ -101,7 +101,7 @@ try:
 
     # Add final layers to graph description
     (bottleneck_input, ground_truth_input,
-     final_tensor, MAE, train_step, gender_input) = append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size,
+     final_tensor, MAE, train_step, gender_input, lr_decay_step) = append_final_layer_to_graph(graph, bottleneck_tensor, bottleneck_tensor_size,
                                                                   learning_rate)
     tf.logging.info("Added final layer.")
 
@@ -178,6 +178,7 @@ try:
         tf.logging.info("all training data: %d" % (training_data))
 
         steps_in_epoch = int(training_data / FLAGS.train_batch_size) - 1
+
 
         i = 0
         for j in range(FLAGS.how_many_epochs):
@@ -256,8 +257,10 @@ try:
                 # x = train_bottlenecks
                 # y = train_ground_truth
 
-                print("genders")
-                print(train_genders)
+                # print("genders")
+                # print(train_genders)
+                # print("gnd t ages")
+                # print(y)
 
                 #train_genders = np.reshape(train_genders, (-1, 1))  #
                 #train_genders_32 = extract_genders(train_genders)
@@ -266,7 +269,7 @@ try:
                 train_summary, results, _, _ = sess.run([merged, final_tensor, train_step, extra_update_ops],
                                          feed_dict={bottleneck_input: x, ground_truth_input: y,
                                                     gender_input: extract_genders(train_genders),
-                                                    'dense_1/InTrainingMode:0': True})
+                                                    lr_decay_step: int(i/10)}) # here was  #'dense_1/InTrainingMode:0': True}
                 train_writer.add_summary(train_summary, i)
                 # sess.run(train_step, feed_dict={bottleneck_input: np.array(x).reshape(batch_size, bottleneck_tensor_size), ground_truth_input: np.array(y).reshape(batch_size)})
 
@@ -274,7 +277,7 @@ try:
 
                 if (i) % display_step == 0:
                     print("results for labels from training set: (label, res, gender)")
-                    print(list(zip(y, results, train_genders))[0:5])
+                    print(list(zip(unscaleAge(y), results, train_genders))[0:5])
                     # print("results", str(results))
                     # print("for:", str(y))
                     # print("():", str(x[0]))
@@ -341,7 +344,7 @@ try:
                         #cost_y.append(c)
                         tf.logging.info("validation M MAE: " + '%.5f' % c)
                         tf.logging.info("for batch of size: " + str(len(test_gend_M)))
-                        tf.logging.info(list(zip(test_grnt_M, res, test_gend_M))[0:5])
+                        tf.logging.info(list(zip(unscaleAge(test_grnt_M), res, test_gend_M))[0:5])
 
                     # run test Female
                     if len(F_indices) > 0:
@@ -356,7 +359,7 @@ try:
                         #cost_y.append(c)
                         tf.logging.info("validation F MAE: " + '%.5f' % c)
                         tf.logging.info("for batch of size: " + str(len(test_gend_F)))
-                        tf.logging.info(list(zip(test_grnt_F, res, test_gend_F))[0:5])
+                        tf.logging.info(list(zip(unscaleAge(test_grnt_F), res, test_gend_F))[0:5])
 
                     tf.logging.info("-----")
 
